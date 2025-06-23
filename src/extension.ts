@@ -4,6 +4,7 @@ import { MemorySizeHoverProvider } from './hoverProvider';
 export function activate(context: vscode.ExtensionContext) {
     const provider = new MemorySizeHoverProvider();
 
+    // Register ONLY ONE hover provider for all C/C++ files
     const disposable = vscode.languages.registerHoverProvider(
         [
             { scheme: 'file', language: 'c' },

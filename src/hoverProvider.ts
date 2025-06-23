@@ -57,6 +57,7 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
 
         const hoverText = new vscode.MarkdownString();
         hoverText.supportHtml = true;
+        hoverText.isTrusted = true;
 
         hoverText.appendMarkdown(`<div style="background-color: #f8f9fa; border-left: 4px solid #28a745; padding: 8px; margin: 4px 0;">`);
         hoverText.appendMarkdown(`Struct Size: <code style="color: #d73a49; background-color: #fff5f5; padding: 2px 4px; border-radius: 3px;">${structInfo.totalSize} bytes</code>`);
@@ -69,6 +70,7 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
 
         hoverText.appendMarkdown(`</div>`);
 
+        // Return hover with exact range - no extension needed
         return new vscode.Hover(hoverText, range);
     }
 
@@ -78,6 +80,7 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
 
         const hoverText = new vscode.MarkdownString();
         hoverText.supportHtml = true;
+        hoverText.isTrusted = true;
 
         hoverText.appendMarkdown(`<div style="background-color: #f8f9fa; border-left: 4px solid #007acc; padding: 8px; margin: 4px 0;">`);
         hoverText.appendMarkdown(`Memory Size: <code style="color: #d73a49; background-color: #fff5f5; padding: 2px 4px; border-radius: 3px;">${memoryInfo.size} bytes</code>`);
@@ -93,16 +96,22 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
 
         hoverText.appendMarkdown(`</div>`);
 
+        // Return hover with exact range - no extension needed
         return new vscode.Hover(hoverText, range);
     }
 
     private getMemoryInfo(type: string): { size: number; description?: string } | null {
-        // Gérer les pointeurs
+        // First check if it's a pointer type
         if (type.includes('*')) {
             const pointerSize = this.typeProvider.getPointerSize();
-            return { size: pointerSize, description: 'Pointer type' };
+            // Extract the base type for better description
+            const baseType = type.replace(/\s*\*+\s*/g, '').trim();
+            const baseTypeInfo = this.typeProvider.getTypeInfo(baseType);
+            const description = baseTypeInfo ? `Pointer to ${baseType}` : 'Pointer type';
+            return { size: pointerSize, description };
         }
 
+        // Check for basic types
         const typeInfo = this.typeProvider.getTypeInfo(type);
         if (!typeInfo) {
             return null;
