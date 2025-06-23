@@ -71,7 +71,10 @@ jobs:
   publish:
     needs: [test, package]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: |
+      (github.event_name == 'release' && github.event.action == 'published') ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -87,6 +90,10 @@ jobs:
 
       - name: Compile extension
         run: npm run compile
+
+      - name: Set version if provided
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.version != ''
+        run: npm version ${{ github.event.inputs.version }} --no-git-tag-version
 
       - name: Publish to Visual Studio Marketplace
         env:
