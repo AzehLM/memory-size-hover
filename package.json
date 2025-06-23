@@ -52,6 +52,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "npx tsc -p ./",
     "watch": "npx tsc -watch -p ./",
+    "test": "echo 'No tests specified' && exit 0",
     "install-deps": "npm install",
     "build": "mkdir -p out && npx tsc",
     "postinstall": "echo 'Dependencies installed successfully'",
