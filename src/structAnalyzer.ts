@@ -23,7 +23,7 @@ export class StructAnalyzer {
 
         let match;
         while ((match = structRegex.exec(text)) !== null) {
-            const structName = match[1] || match[3]; // nom après struct ou après }
+            const structName = match[1] || match[3];
             const body = match[2];
 
             if (structName && body) {
