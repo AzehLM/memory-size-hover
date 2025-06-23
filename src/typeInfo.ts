@@ -32,6 +32,9 @@ export class TypeInfoProvider {
     }
 
     public getTypeInfo(type: string): TypeInfo | null {
+
+        const normalizedType = type.trim().toLowerCase().replace(/\s+/g, ' ');
+
         const typeInfo: { [key: string]: TypeInfo } = {
             // Basic integer types
             'char': { x32: {size: 1, alignment: 1}, x64: {size: 1, alignment: 1}, desc: 'Character type, always 1 byte' },

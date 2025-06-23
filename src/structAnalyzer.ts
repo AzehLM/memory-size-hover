@@ -110,8 +110,11 @@ export class StructAnalyzer {
         // Nettoyer le type (enlever const, volatile, etc.)
         const cleanType = type.replace(/\b(const|volatile|static|extern|register)\b/g, '').trim();
 
-        const size = this.typeProvider.getMemorySize(cleanType);
-        const alignment = this.typeProvider.getAlignment(cleanType);
+        // Normaliser les espaces multiples
+        const normalizedType = cleanType.replace(/\s+/g, ' ');
+
+        const size = this.typeProvider.getMemorySize(normalizedType);
+        const alignment = this.typeProvider.getAlignment(normalizedType);
 
         if (size === null || alignment === null) {
             return null;

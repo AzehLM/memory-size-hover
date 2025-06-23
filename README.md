@@ -10,6 +10,7 @@ Extension VSCode qui affiche la taille mémoire des types de variables C/C++ au 
 - 🏗️ Support des architectures 32-bit et 64-bit automatique
 - 🔧 Compatible avec C et C++
 - 📊 Types supportés : int, float, double, char, pointeurs, typedefs, etc.
+- ✨ Reconnaissance intelligente des types composés (ex: "long long int", "unsigned long")
 
 ## Installation
 
@@ -58,7 +59,7 @@ L'extension est automatiquement publiée sur le marketplace VSCode lors de la cr
 
 #### Workflow de publication :
 1. **Développement local** : Testez avec `F5` en mode debug
-2. **Nouvelle version** : 
+2. **Nouvelle version** :
    ```bash
    npm run version:patch  # ou minor/major
    ```
