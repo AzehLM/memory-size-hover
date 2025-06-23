@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as os from 'os';
+import { TypeInfoProvider } from './typeInfo';
 
 export interface StructInfo {
     name: string;
@@ -8,12 +8,10 @@ export interface StructInfo {
 }
 
 export class StructAnalyzer {
-    private architecture: string;
-    private is64Bit: boolean;
+    private typeProvider: TypeInfoProvider;
 
     constructor() {
-        this.architecture = os.arch();
-        this.is64Bit = this.architecture.includes('64');
+        this.typeProvider = TypeInfoProvider.getInstance();
     }
 
     public findStructs(document: vscode.TextDocument): Map<string, StructInfo> {
@@ -105,65 +103,21 @@ export class StructAnalyzer {
     private getTypeInfo(type: string): {size: number, alignment: number} | null {
         // Gérer les pointeurs
         if (type.includes('*')) {
-            const pointerSize = this.is64Bit ? 8 : 4;
+            const pointerSize = this.typeProvider.getPointerSize();
             return { size: pointerSize, alignment: pointerSize };
         }
 
         // Nettoyer le type (enlever const, volatile, etc.)
         const cleanType = type.replace(/\b(const|volatile|static|extern|register)\b/g, '').trim();
 
-        const typeInfo: { [key: string]: { x32: {size: number, alignment: number}, x64: {size: number, alignment: number} } } = {
-            'char': { x32: {size: 1, alignment: 1}, x64: {size: 1, alignment: 1} },
-            'signed char': { x32: {size: 1, alignment: 1}, x64: {size: 1, alignment: 1} },
-            'unsigned char': { x32: {size: 1, alignment: 1}, x64: {size: 1, alignment: 1} },
+        const size = this.typeProvider.getMemorySize(cleanType);
+        const alignment = this.typeProvider.getAlignment(cleanType);
 
-            'short': { x32: {size: 2, alignment: 2}, x64: {size: 2, alignment: 2} },
-            'short int': { x32: {size: 2, alignment: 2}, x64: {size: 2, alignment: 2} },
-            'unsigned short': { x32: {size: 2, alignment: 2}, x64: {size: 2, alignment: 2} },
-            'unsigned short int': { x32: {size: 2, alignment: 2}, x64: {size: 2, alignment: 2} },
-
-            'int': { x32: {size: 4, alignment: 4}, x64: {size: 4, alignment: 4} },
-            'signed': { x32: {size: 4, alignment: 4}, x64: {size: 4, alignment: 4} },
-            'signed int': { x32: {size: 4, alignment: 4}, x64: {size: 4, alignment: 4} },
-            'unsigned': { x32: {size: 4, alignment: 4}, x64: {size: 4, alignment: 4} },
-            'unsigned int': { x32: {size: 4, alignment: 4}, x64: {size: 4, alignment: 4} },
-
-            'long': { x32: {size: 4, alignment: 4}, x64: {size: 8, alignment: 8} },
-            'long int': { x32: {size: 4, alignment: 4}, x64: {size: 8, alignment: 8} },
-            'unsigned long': { x32: {size: 4, alignment: 4}, x64: {size: 8, alignment: 8} },
-            'unsigned long int': { x32: {size: 4, alignment: 4}, x64: {size: 8, alignment: 8} },
-
-            'long long': { x32: {size: 8, alignment: 8}, x64: {size: 8, alignment: 8} },
-            'long long int': { x32: {size: 8, alignment: 8}, x64: {size: 8, alignment: 8} },
-            'unsigned long long': { x32: {size: 8, alignment: 8}, x64: {size: 8, alignment: 8} },
-
-            'float': { x32: {size: 4, alignment: 4}, x64: {size: 4, alignment: 4} },
-            'double': { x32: {size: 8, alignment: 8}, x64: {size: 8, alignment: 8} },
-            'long double': { x32: {size: 12, alignment: 4}, x64: {size: 16, alignment: 16} },
-
-            'bool': { x32: {size: 1, alignment: 1}, x64: {size: 1, alignment: 1} },
-            '_Bool': { x32: {size: 1, alignment: 1}, x64: {size: 1, alignment: 1} },
-
-            // Types de taille fixe
-            'int8_t': { x32: {size: 1, alignment: 1}, x64: {size: 1, alignment: 1} },
-            'uint8_t': { x32: {size: 1, alignment: 1}, x64: {size: 1, alignment: 1} },
-            'int16_t': { x32: {size: 2, alignment: 2}, x64: {size: 2, alignment: 2} },
-            'uint16_t': { x32: {size: 2, alignment: 2}, x64: {size: 2, alignment: 2} },
-            'int32_t': { x32: {size: 4, alignment: 4}, x64: {size: 4, alignment: 4} },
-            'uint32_t': { x32: {size: 4, alignment: 4}, x64: {size: 4, alignment: 4} },
-            'int64_t': { x32: {size: 8, alignment: 8}, x64: {size: 8, alignment: 8} },
-            'uint64_t': { x32: {size: 8, alignment: 8}, x64: {size: 8, alignment: 8} },
-
-            'size_t': { x32: {size: 4, alignment: 4}, x64: {size: 8, alignment: 8} },
-            'ptrdiff_t': { x32: {size: 4, alignment: 4}, x64: {size: 8, alignment: 8} }
-        };
-
-        const info = typeInfo[cleanType.toLowerCase()];
-        if (!info) {
+        if (size === null || alignment === null) {
             return null;
         }
 
-        return (this.is64Bit ? info.x64 : info.x32);
+        return { size, alignment };
     }
 
     private alignTo(offset: number, alignment: number): number {
