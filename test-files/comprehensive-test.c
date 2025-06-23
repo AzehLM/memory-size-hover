@@ -2,9 +2,15 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "struct-test.h"
+
+
 
 // Test basique des types fondamentaux
 int main() {
+
+    Vector3D vec = {1.0f, 2.0f, 3.0f, 42};
+
     // Types caractères
     char c1;                    // 1 byte
     signed char c2;             // 1 byte

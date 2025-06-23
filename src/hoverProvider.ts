@@ -1,11 +1,15 @@
 import * as vscode from 'vscode';
 import * as os from 'os';
+import { StructAnalyzer, StructInfo } from './structAnalyzer';
 
 export class MemorySizeHoverProvider implements vscode.HoverProvider {
     private architecture: string;
+    private structAnalyzer: StructAnalyzer;
+    private structCache: Map<string, Map<string, StructInfo>> = new Map();
 
     constructor() {
         this.architecture = os.arch();
+        this.structAnalyzer = new StructAnalyzer();
     }
 
     provideHover(
@@ -19,19 +23,62 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
         }
 
         const word = document.getText(range);
-        const memoryInfo = this.getMemoryInfo(word);
 
+        // Vérifier d'abord si c'est une structure définie par l'utilisateur
+        const structInfo = this.getStructInfo(document, word);
+        if (structInfo) {
+            return this.createStructHover(structInfo, range);
+        }
+
+        // Sinon, vérifier les types de base
+        const memoryInfo = this.getMemoryInfo(word);
         if (!memoryInfo) {
             return undefined;
         }
 
+        return this.createTypeHover(memoryInfo, range);
+    }
+
+    private getStructInfo(document: vscode.TextDocument, structName: string): StructInfo | null {
+        const documentUri = document.uri.toString();
+
+        // Vérifier le cache
+        if (!this.structCache.has(documentUri)) {
+            this.structCache.set(documentUri, this.structAnalyzer.findStructs(document));
+        }
+
+        const structs = this.structCache.get(documentUri);
+        return structs?.get(structName) || null;
+    }
+
+    private createStructHover(structInfo: StructInfo, range: vscode.Range): vscode.Hover {
         const config = vscode.workspace.getConfiguration('memorySizeHover');
         const showArchitecture = config.get<boolean>('showArchitecture', true);
 
         const hoverText = new vscode.MarkdownString();
         hoverText.supportHtml = true;
 
-        // Style inspiré de Doxygen
+        hoverText.appendMarkdown(`<div style="background-color: #f8f9fa; border-left: 4px solid #28a745; padding: 8px; margin: 4px 0;">`);
+        hoverText.appendMarkdown(`Struct Size: <code style="color: #d73a49; background-color: #fff5f5; padding: 2px 4px; border-radius: 3px;">${structInfo.totalSize} bytes</code>`);
+        hoverText.appendMarkdown(`<br><small style="color: #586069;">User-defined structure</small>`);
+
+        if (showArchitecture) {
+            const archIcon = this.architecture.includes('64') ? '🖥️' : '💻';
+            hoverText.appendMarkdown(`<br><small style="color: #6f42c1;">${archIcon} Architecture: ${this.architecture}</small>`);
+        }
+
+        hoverText.appendMarkdown(`</div>`);
+
+        return new vscode.Hover(hoverText, range);
+    }
+
+    private createTypeHover(memoryInfo: { size: number; description?: string }, range: vscode.Range): vscode.Hover {
+        const config = vscode.workspace.getConfiguration('memorySizeHover');
+        const showArchitecture = config.get<boolean>('showArchitecture', true);
+
+        const hoverText = new vscode.MarkdownString();
+        hoverText.supportHtml = true;
+
         hoverText.appendMarkdown(`<div style="background-color: #f8f9fa; border-left: 4px solid #007acc; padding: 8px; margin: 4px 0;">`);
         hoverText.appendMarkdown(`Memory Size: <code style="color: #d73a49; background-color: #fff5f5; padding: 2px 4px; border-radius: 3px;">${memoryInfo.size} bytes</code>`);
 
@@ -45,7 +92,6 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
         }
 
         hoverText.appendMarkdown(`</div>`);
-
 
         return new vscode.Hover(hoverText, range);
     }
