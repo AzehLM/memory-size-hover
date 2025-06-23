@@ -2,7 +2,7 @@
   "name": "memory-size-hover",
   "displayName": "Memory Size Hover",
   "description": "Shows memory size of variable types on hover for C/C++",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "publisher": "AzehLM",
   "author": "AzehLM",
   "license": "MIT",
