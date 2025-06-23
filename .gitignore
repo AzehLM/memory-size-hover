@@ -1,0 +1,27 @@
+# Compiled output
+out/
+node_modules/
+
+# VSCode settings
+.vscode/settings.json
+
+# Package files
+*.vsix
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# OS generated files
+.DS_Store
+Thumbs.db
