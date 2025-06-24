@@ -2,7 +2,7 @@
   "name": "memory-size-hover",
   "displayName": "Memory Size Hover",
   "description": "Shows memory size of variable types on hover for C/C++",
-  "version": "1.0.13",
+  "version": "1.1.0",
   "publisher": "AzehLM",
   "author": "AzehLM",
   "license": "MIT",
@@ -64,9 +64,9 @@
     "version:major": "npm version major && git push && git push --tags"
   },
   "devDependencies": {
-    "@types/vscode": "^1.74.0",
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "@vscode/vsce": "^2.22.0"
+    "@types/vscode": "^1.74.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.8.3"
   }
 }

@@ -4,11 +4,29 @@
 #include <stdbool.h>
 #include "struct-test.h"
 
+// Structure avec padding complexe
+struct PaddingDemo {
+    char a;      // 1 byte + 3 padding
+    int b;       // 4 bytes
+    char c;      // 1 byte + 1 padding
+    short d;     // 2 bytes
+    char e;      // 1 byte + 7 padding
+    double f;    // 8 bytes
+}; // Total: 24 bytes
 
+// Union test
+union TestUnion {
+    char c;
+    int i;
+    double d;
+    float arr[3];
+}; // Size: max(1, 4, 8, 12) = 12 bytes
 
 // Test basique des types fondamentaux
 int main() {
 
+    struct PaddingDemo pd;
+    union TestUnion tu;
     Vector3D vec = {1.0f, 2.0f, 3.0f, 42};
 
     char c1;

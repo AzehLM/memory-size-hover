@@ -10,6 +10,14 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
     constructor() {
         this.typeProvider = TypeInfoProvider.getInstance();
         this.structAnalyzer = new StructAnalyzer();
+
+        // Invalider le cache quand un document change
+        vscode.workspace.onDidChangeTextDocument((e) => {
+            const uri = e.document.uri.toString();
+            if (this.structCache.has(uri)) {
+                this.structCache.delete(uri);
+            }
+        });
     }
 
     provideHover(
@@ -23,7 +31,7 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
             return undefined;
         }
 
-        // Vérifier d'abord si c'est une structure définie par l'utilisateur
+        // Vérifier d'abord si c'est une structure/classe définie par l'utilisateur
         const structInfo = this.getStructInfo(document, typeInfo.text);
         if (structInfo) {
             return this.createStructHover(structInfo, typeInfo.range);
@@ -55,23 +63,23 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
             'int_least8_t', 'int_least16_t', 'int_least32_t', 'int_least64_t',
             'uint_least8_t', 'uint_least16_t', 'uint_least32_t', 'uint_least64_t',
             'intmax_t', 'uintmax_t',
-            'struct', 'union', 'enum', 'void'
+            'struct', 'union', 'enum', 'void', 'class'
         ];
 
-        // 1. D'abord, essayer de détecter "struct StructName" ou "union UnionName"
-        const structPattern = /\b(?:struct|union)\s+(\w+)(?:\s*\*+)?\b/g;
+        // 1. D'abord, essayer de détecter "struct StructName", "class ClassName" ou "union UnionName"
+        const structPattern = /\b(?:struct|union|class)\s+(\w+)(?:\s*\*+)?\b/g;
         let match;
         while ((match = structPattern.exec(lineText)) !== null) {
             const startPos = match.index;
             const endPos = match.index + match[0].length;
 
             if (position.character >= startPos && position.character <= endPos) {
-                // Extraire juste le nom de la structure
+                // Extraire juste le nom de la structure/classe
                 const structName = match[1];
                 const structNameStart = match.index + match[0].indexOf(structName);
                 const structNameEnd = structNameStart + structName.length;
 
-                // Vérifier si le curseur est sur le nom de la structure
+                // Vérifier si le curseur est sur le nom
                 if (position.character >= structNameStart && position.character <= structNameEnd) {
                     return {
                         text: structName,
@@ -84,7 +92,7 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
                     };
                 }
 
-                // Si le curseur est sur "struct" ou "union", retourner le type complet
+                // Si le curseur est sur "struct", "class" ou "union", retourner le type complet
                 return {
                     text: match[0].trim().replace(/\s+/g, ' '),
                     range: new vscode.Range(
@@ -97,12 +105,12 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
             }
         }
 
-        // 2. Essayer de détecter un nom de type défini par l'utilisateur (typedef struct)
+        // 2. Essayer de détecter un nom de type défini par l'utilisateur (typedef struct/class)
         const wordRange = document.getWordRangeAtPosition(position);
         if (wordRange) {
             const word = document.getText(wordRange);
 
-            // Vérifier si c'est un nom de struct connu
+            // Vérifier si c'est un nom de struct/class connu
             const structs = this.getStructsFromDocument(document);
             if (structs.has(word)) {
                 return {
@@ -189,6 +197,15 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
             }
         }
 
+        // Si le typeName contient "class ", extraire juste le nom
+        if (typeName.startsWith('class ')) {
+            const className = typeName.substring(6).trim();
+            structInfo = structs.get(className);
+            if (structInfo) {
+                return structInfo;
+            }
+        }
+
         // Si le typeName contient "union ", extraire juste le nom
         if (typeName.startsWith('union ')) {
             const unionName = typeName.substring(6).trim();
@@ -201,6 +218,65 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
         return null;
     }
 
+    private createMemoryLayout(structInfo: StructInfo): string {
+        if (structInfo.type === 'union') {
+            return this.createUnionLayout(structInfo);
+        }
+
+        let layout = '';
+        let currentOffset = 0;
+
+        for (const member of structInfo.members) {
+            // Ajouter une ligne pour chaque membre
+            const memberLine = this.createMemberLine(member, currentOffset);
+            layout += memberLine + '\n';
+
+            currentOffset = member.offset + member.size;
+
+            // Ajouter le padding si nécessaire
+            if (member.paddingAfter && member.paddingAfter > 0) {
+                const paddingLine = this.createPaddingLine(member.paddingAfter, currentOffset);
+                layout += paddingLine + '\n';
+                currentOffset += member.paddingAfter;
+            }
+        }
+
+        return layout;
+    }
+
+    private createUnionLayout(structInfo: StructInfo): string {
+        let layout = '';
+
+        for (let i = 0; i < structInfo.members.length; i++) {
+            const member = structInfo.members[i];
+            const prefix = i === 0 ? '┌─' : '├─';
+            layout += `${prefix} ${member.name} (${member.type}): ${member.size} bytes\n`;
+        }
+
+        layout += `└─ Total: ${structInfo.totalSize} bytes`;
+        return layout;
+    }
+
+    private createMemberLine(member: any, offset: number): string {
+        const offsetStr = offset.toString().padStart(2, '0');
+        const sizeStr = `${member.size} byte${member.size > 1 ? 's' : ''}`;
+
+        if (member.name === '__vptr') {
+            return `${offsetStr}: [vptr      ] ${sizeStr} (virtual table pointer)`;
+        } else if (member.name === '__base') {
+            return `${offsetStr}: [base class] ${sizeStr} (${member.type})`;
+        } else {
+            const displayName = member.name.padEnd(10, ' ').substring(0, 10);
+            return `${offsetStr}: [${displayName}] ${sizeStr} (${member.type})`;
+        }
+    }
+
+    private createPaddingLine(paddingSize: number, offset: number): string {
+        const offsetStr = offset.toString().padStart(2, '0');
+        const paddingStr = '░'.repeat(Math.min(paddingSize * 2, 20));
+        return `${offsetStr}: ${paddingStr} ${paddingSize} byte${paddingSize > 1 ? 's' : ''} padding`;
+    }
+
     private createStructHover(structInfo: StructInfo, range: vscode.Range): vscode.Hover {
         const config = vscode.workspace.getConfiguration('memorySizeHover');
         const showArchitecture = config.get<boolean>('showArchitecture', true);
@@ -209,13 +285,35 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
         hoverText.supportHtml = true;
         hoverText.isTrusted = true;
 
-        hoverText.appendMarkdown(`<div style="background-color: #f8f9fa; border-left: 4px solid #28a745; padding: 8px; margin: 4px 0;">`);
-        hoverText.appendMarkdown(`Struct Size: <code style="color: #d73a49; background-color: #fff5f5; padding: 2px 4px; border-radius: 3px;">${structInfo.totalSize} bytes</code>`);
-        hoverText.appendMarkdown(`<br><small style="color: #586069;">User-defined structure</small>`);
+        // Header avec type et taille
+        const typeLabel = structInfo.type.charAt(0).toUpperCase() + structInfo.type.slice(1);
+        const color = structInfo.type === 'class' ? '#9B59B6' :
+                      structInfo.type === 'union' ? '#E74C3C' : '#28a745';
 
+        hoverText.appendMarkdown(`<div style="background-color: #f8f9fa; border-left: 4px solid ${color}; padding: 8px; margin: 4px 0;">`);
+        hoverText.appendMarkdown(`<strong>${typeLabel} ${structInfo.name}</strong><br>`);
+        hoverText.appendMarkdown(`Total Size: <code style="color: #d73a49; background-color: #fff5f5; padding: 2px 4px; border-radius: 3px;">${structInfo.totalSize} bytes</code>`);
+
+        if (structInfo.baseClass) {
+            hoverText.appendMarkdown(`<br>Inherits from: <code>${structInfo.baseClass}</code>`);
+        }
+
+        if (structInfo.hasVirtualTable) {
+            hoverText.appendMarkdown(`<br><small style="color: #6f42c1;">✓ Has virtual table</small>`);
+        }
+
+        hoverText.appendMarkdown(`<br><small style="color: #586069;">Alignment: ${structInfo.alignment} bytes</small>`);
+
+        // Memory layout
+        if (structInfo.members.length > 0) {
+            hoverText.appendMarkdown(`<br><br><strong>Memory Layout:</strong>`);
+            hoverText.appendCodeblock(this.createMemoryLayout(structInfo), 'text');
+        }
+
+        // Architecture info
         if (showArchitecture) {
             const archIcon = this.typeProvider.is64BitArch() ? '🖥️' : '💻';
-            hoverText.appendMarkdown(`<br><small style="color: #6f42c1;">${archIcon} Architecture: ${this.typeProvider.getArchitecture()}</small>`);
+            hoverText.appendMarkdown(`<small style="color: #6f42c1;">${archIcon} Architecture: ${this.typeProvider.getArchitecture()}</small>`);
         }
 
         hoverText.appendMarkdown(`</div>`);
