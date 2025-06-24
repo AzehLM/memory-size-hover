@@ -58,13 +58,69 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
             'struct', 'union', 'enum', 'void'
         ];
 
-        // Créer un pattern pour matcher les types
+        // 1. D'abord, essayer de détecter "struct StructName" ou "union UnionName"
+        const structPattern = /\b(?:struct|union)\s+(\w+)(?:\s*\*+)?\b/g;
+        let match;
+        while ((match = structPattern.exec(lineText)) !== null) {
+            const startPos = match.index;
+            const endPos = match.index + match[0].length;
+
+            if (position.character >= startPos && position.character <= endPos) {
+                // Extraire juste le nom de la structure
+                const structName = match[1];
+                const structNameStart = match.index + match[0].indexOf(structName);
+                const structNameEnd = structNameStart + structName.length;
+
+                // Vérifier si le curseur est sur le nom de la structure
+                if (position.character >= structNameStart && position.character <= structNameEnd) {
+                    return {
+                        text: structName,
+                        range: new vscode.Range(
+                            position.line,
+                            structNameStart,
+                            position.line,
+                            structNameEnd
+                        )
+                    };
+                }
+
+                // Si le curseur est sur "struct" ou "union", retourner le type complet
+                return {
+                    text: match[0].trim().replace(/\s+/g, ' '),
+                    range: new vscode.Range(
+                        position.line,
+                        startPos,
+                        position.line,
+                        endPos
+                    )
+                };
+            }
+        }
+
+        // 2. Essayer de détecter un nom de type défini par l'utilisateur (typedef struct)
+        const wordRange = document.getWordRangeAtPosition(position);
+        if (wordRange) {
+            const word = document.getText(wordRange);
+
+            // Vérifier si c'est un nom de struct connu
+            const structs = this.getStructsFromDocument(document);
+            if (structs.has(word)) {
+                return {
+                    text: word,
+                    range: wordRange
+                };
+            }
+        }
+
+        // 3. Créer un pattern pour matcher les types de base avec modificateurs
         const typePattern = new RegExp(
             `\\b(?:(?:${typeKeywords.join('|')})\\s*)+(?:\\*+)?\\b`,
             'g'
         );
 
-        let match;
+        // Réinitialiser lastIndex pour la nouvelle recherche
+        typePattern.lastIndex = 0;
+
         while ((match = typePattern.exec(lineText)) !== null) {
             const startPos = match.index;
             const endPos = match.index + match[0].length;
@@ -89,8 +145,7 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
             }
         }
 
-        // Si aucun type composé n'est trouvé, essayer juste le mot sous le curseur
-        const wordRange = document.getWordRangeAtPosition(position);
+        // 4. Si aucun type composé n'est trouvé, essayer juste le mot sous le curseur
         if (wordRange) {
             const word = document.getText(wordRange);
             // Vérifier si c'est un mot-clé de type connu
@@ -105,7 +160,7 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
         return null;
     }
 
-    private getStructInfo(document: vscode.TextDocument, structName: string): StructInfo | null {
+    private getStructsFromDocument(document: vscode.TextDocument): Map<string, StructInfo> {
         const documentUri = document.uri.toString();
 
         // Vérifier le cache
@@ -113,8 +168,37 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
             this.structCache.set(documentUri, this.structAnalyzer.findStructs(document));
         }
 
-        const structs = this.structCache.get(documentUri);
-        return structs?.get(structName) || null;
+        return this.structCache.get(documentUri) || new Map();
+    }
+
+    private getStructInfo(document: vscode.TextDocument, typeName: string): StructInfo | null {
+        const structs = this.getStructsFromDocument(document);
+
+        // Essayer d'abord le nom exact
+        let structInfo = structs.get(typeName);
+        if (structInfo) {
+            return structInfo;
+        }
+
+        // Si le typeName contient "struct ", extraire juste le nom
+        if (typeName.startsWith('struct ')) {
+            const structName = typeName.substring(7).trim();
+            structInfo = structs.get(structName);
+            if (structInfo) {
+                return structInfo;
+            }
+        }
+
+        // Si le typeName contient "union ", extraire juste le nom
+        if (typeName.startsWith('union ')) {
+            const unionName = typeName.substring(6).trim();
+            structInfo = structs.get(unionName);
+            if (structInfo) {
+                return structInfo;
+            }
+        }
+
+        return null;
     }
 
     private createStructHover(structInfo: StructInfo, range: vscode.Range): vscode.Hover {
