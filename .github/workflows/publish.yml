@@ -32,20 +32,16 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Compile extension
         run: npm run compile
 
-      - name: Upload compiled code and dependencies
+      - name: Upload compiled code
         uses: actions/upload-artifact@v4
         with:
           name: compiled-extension
-          path: |
-            out/
-            node_modules/
-            package.json
-            package-lock.json
+          path: out/
           retention-days: 1
 
   test:
@@ -59,11 +55,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Download compiled code and dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download compiled code
         uses: actions/download-artifact@v4
         with:
           name: compiled-extension
+          path: out
 
       - name: Run tests
         run: npm test
@@ -79,14 +80,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Download compiled code and dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download compiled code
         uses: actions/download-artifact@v4
         with:
           name: compiled-extension
+          path: out
 
       - name: Package extension
-        run: npm run package
+        run: npx @vscode/vsce package
 
       - name: Upload VSIX as artifact
         uses: actions/upload-artifact@v4
@@ -110,11 +116,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Download compiled code and dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download compiled code
         uses: actions/download-artifact@v4
         with:
           name: compiled-extension
+          path: out
 
       - name: Set version if provided
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.version != ''
@@ -123,4 +134,4 @@ jobs:
       - name: Publish to Visual Studio Marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_TOKEN }}
-        run: npx vsce publish --no-yarn -p $VSCE_PAT
+        run: npx @vscode/vsce publish --no-yarn -p $VSCE_PAT
