@@ -34,6 +34,21 @@ export class StructAnalyzer {
             }
         }
 
+        // Regex pour capturer les définitions de classes C++
+        const classRegex = /class\s+(\w+)(?:\s*\:\s*(?:(?:public|private|protected)\s+\w+(?:\s*,\s*(?:public|private|protected)\s+\w+)*))?\s*\{([^}]+)\}\s*;/g;
+
+        while ((match = classRegex.exec(text)) !== null) {
+            const className = match[1];
+            const body = match[match.length - 1];
+
+            if (className && body) {
+                const classInfo = this.calculateStructSize(className, body);
+                if (classInfo) {
+                    structs.set(className, classInfo);
+                }
+            }
+        }
+
         return structs;
     }
 
@@ -81,6 +96,16 @@ export class StructAnalyzer {
         for (const line of lines) {
             // Ignorer les commentaires
             if (line.startsWith('//') || line.startsWith('/*')) {
+                continue;
+            }
+
+            // Ignorer les access specifiers (public:, private:, protected:)
+            if (line.match(/^\s*(public|private|protected)\s*:\s*$/)) {
+                continue;
+            }
+
+            // Ignorer les méthodes/fonctions (contiennent des parenthèses)
+            if (line.includes('(') && line.includes(')')) {
                 continue;
             }
 

@@ -55,23 +55,23 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
             'int_least8_t', 'int_least16_t', 'int_least32_t', 'int_least64_t',
             'uint_least8_t', 'uint_least16_t', 'uint_least32_t', 'uint_least64_t',
             'intmax_t', 'uintmax_t',
-            'struct', 'union', 'enum', 'void'
+            'struct', 'union', 'enum', 'class', 'void'
         ];
 
-        // 1. D'abord, essayer de détecter "struct StructName" ou "union UnionName"
-        const structPattern = /\b(?:struct|union)\s+(\w+)(?:\s*\*+)?\b/g;
+        // 1. D'abord, essayer de détecter "struct StructName", "union UnionName", ou "class ClassName"
+        const structPattern = /\b(?:struct|union|class)\s+(\w+)(?:\s*\*+)?\b/g;
         let match;
         while ((match = structPattern.exec(lineText)) !== null) {
             const startPos = match.index;
             const endPos = match.index + match[0].length;
 
             if (position.character >= startPos && position.character <= endPos) {
-                // Extraire juste le nom de la structure
+                // Extraire juste le nom de la structure/classe
                 const structName = match[1];
                 const structNameStart = match.index + match[0].indexOf(structName);
                 const structNameEnd = structNameStart + structName.length;
 
-                // Vérifier si le curseur est sur le nom de la structure
+                // Vérifier si le curseur est sur le nom de la structure/classe
                 if (position.character >= structNameStart && position.character <= structNameEnd) {
                     return {
                         text: structName,
@@ -84,7 +84,7 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
                     };
                 }
 
-                // Si le curseur est sur "struct" ou "union", retourner le type complet
+                // Si le curseur est sur "struct", "union", ou "class", retourner le type complet
                 return {
                     text: match[0].trim().replace(/\s+/g, ' '),
                     range: new vscode.Range(
@@ -198,6 +198,15 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
             }
         }
 
+        // Si le typeName contient "class ", extraire juste le nom
+        if (typeName.startsWith('class ')) {
+            const className = typeName.substring(6).trim();
+            structInfo = structs.get(className);
+            if (structInfo) {
+                return structInfo;
+            }
+        }
+
         return null;
     }
 
@@ -210,8 +219,8 @@ export class MemorySizeHoverProvider implements vscode.HoverProvider {
         hoverText.isTrusted = true;
 
         hoverText.appendMarkdown(`<div style="background-color: #f8f9fa; border-left: 4px solid #28a745; padding: 8px; margin: 4px 0;">`);
-        hoverText.appendMarkdown(`Struct Size: <code style="color: #d73a49; background-color: #fff5f5; padding: 2px 4px; border-radius: 3px;">${structInfo.totalSize} bytes</code>`);
-        hoverText.appendMarkdown(`<br><small style="color: #586069;">User-defined structure</small>`);
+        hoverText.appendMarkdown(`Size: <code style="color: #d73a49; background-color: #fff5f5; padding: 2px 4px; border-radius: 3px;">${structInfo.totalSize} bytes</code>`);
+        hoverText.appendMarkdown(`<br><small style="color: #586069;">User-defined type</small>`);
 
         if (showArchitecture) {
             const archIcon = this.typeProvider.is64BitArch() ? '🖥️' : '💻';
